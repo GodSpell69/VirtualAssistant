@@ -7,6 +7,7 @@ from vtkmodules.vtkRenderingOpenGL2 import (
     vtkOpenGLPolyDataMapper,
     vtkOpenGLActor
     )
+import vtkmodules.all
 from resources.web.threads import *
 
 class MainWindow(QWidget):
@@ -119,6 +120,7 @@ class MainWindow(QWidget):
         self.end_x.setStyleSheet("background-color: rgb(255,0,127); border-radius : 15px;")
         self.end_x.setFixedSize(30, 30)
         self.end_x.clicked.connect(lambda: self.close())
+        self.end_x.clicked.connect(lambda: self.processingData_worker.Stop())
         self.end_x.move(266, 5)
 
     def IRecord(self):
@@ -128,11 +130,26 @@ class MainWindow(QWidget):
 
         self.worker.moveToThread(self.thread2)
         self.worker.my_flag = True
-        self.worker.phrase.connect(lambda phrase: print(phrase))
+        #self.worker.phrase.connect(lambda param1: self.IQuestion_Answering(param1))
 
         self.thread2.started.connect(self.worker.record_to_file)
 
         self.worker.finished.connect(self.thread2.exit)
+
+    '''
+    def IQuestion_Answering(self, phrase):
+
+        self.speak_worker = Question_Answering()
+        self.thread4 = QThread()
+        #self.phrase = phrase
+        #self.speak_worker.phrase = self.phrase
+
+        self.speak_worker.moveToThread(self.thread4)
+
+        self.thread4.started.connect(self.speak_worker.generate_answer(phrase))
+
+        self.speak_worker.finished.connect(self.thread4.exit)
+    '''
 
     def IAnimate(self):
 
