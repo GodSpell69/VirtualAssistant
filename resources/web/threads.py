@@ -20,20 +20,25 @@ RATE = 44100
 CHUNK = 1024 * 2
 
 p = pyaudio.PyAudio()
-stream = p.open(format=FORMAT,
-                        channels=CHANNELS,
-                        rate=RATE,
-                        input=True,
-                        output=True,
-                        frames_per_buffer=CHUNK)
+try:
+    stream = p.open(format=FORMAT,
+                    channels=CHANNELS,
+                    rate=RATE,
+                    input=True,
+                    output=True,
+                    frames_per_buffer=CHUNK)
+except OSError:
+    stream = None
 
 class Recorder(QThread):
     phrase = pyqtSignal(str)
+    mic = pyqtSignal(bool)
     THRESHOLD = 150
     CHUNK_SIZE = 1024
     FORMAT = pyaudio.paInt16
     RATE = 44100
-    my_flag = False
+    mic_flag = False
+    record_flag = False
     model_name = "gpt2"
     tokenizer = GPT2Tokenizer.from_pretrained(model_name)
     model = GPT2LMHeadModel.from_pretrained(model_name)
@@ -113,17 +118,23 @@ class Recorder(QThread):
         it without getting chopped off.
         """
         p = pyaudio.PyAudio()
-        stream = p.open(format=self.FORMAT, channels=1, rate=self.RATE,
-            input=True, output=True,
-            frames_per_buffer=self.CHUNK_SIZE)
+        try:
+            stream = p.open(format=self.FORMAT, channels=1, rate=self.RATE,
+                input=True, output=True,
+                frames_per_buffer=self.CHUNK_SIZE)
+        
+        except OSError:
+            #print("Nenhum dispositivo de gravação encontrado. Pulando captura de áudio.")
+            return (0, 0)
 
+        self.mic.emit(True)
         num_silent = 0
         snd_started = False
         Save = False
 
         r = array('h')
 
-        while 1:
+        while True:
 
             # little endian, signed short
             snd_data = array('h', stream.read(self.CHUNK_SIZE))
@@ -178,16 +189,21 @@ class Recorder(QThread):
     #Zero
     def record_to_file(self):
         "Records from the microphone and outputs the resulting data to 'path'"
-        print(1)
-        while self.my_flag == False:
+        while self.record_flag == False:
             time.sleep(1)
-        sample_width, data = self.record()
 
-        if (sample_width, data) == (0,0):
-            self.record_to_file()
+        while True:
 
-        else:
-            f_name_directory = r'D:\Gab\prog\Nicole_project\resources\audios'
+            sample_width, data = self.record()
+
+            if (sample_width, data) == (0,0):
+                #print("Nenhum áudio capturado. Tentando novamente em 30 segundos...")
+                #self.mic.emit(False)
+                time.sleep(1)
+                continue
+
+            #self.mic.emit(True)
+            f_name_directory = r'resources\audios'
 
             n_files = len(os.listdir(f_name_directory))
 
@@ -203,6 +219,7 @@ class Recorder(QThread):
             #print(filename)
 
             self.recognition(filename)
+            break
     #Sexto
     def recognition(self, filename):
 
@@ -218,12 +235,12 @@ class Recorder(QThread):
             audio = r.listen(source)
 
             try:
-                recorded_phrase = r.recognize_google(audio,language='en-US')
+                recorded_phrase = r.recognize_google(audio,language='pt-BR')
 
             except sr.UnknownValueError:
                 recorded_phrase = "Not understood"
 
-        if "man" in recorded_phrase:
+        if "jarvis" in recorded_phrase:
             print(recorded_phrase)
             self.phrase.emit(recorded_phrase)
             self.generate_answer(recorded_phrase)
@@ -249,19 +266,6 @@ class Recorder(QThread):
         self.engine.say(answer)
         self.engine.runAndWait()
         self.engine.stop()
-    '''
-    def answer(self, recorded_phrase):
-        print("Gerando resposta...")
-        #result = Bard().get_answer(recorded_phrase)['content']
-        #print(result)
-        self.speak(result)
-    #Oitavo
-    def speak(self, answer):
-        self.engine.setProperty('rate', 200)
-        self.engine.say(answer)
-        self.engine.runAndWait()
-        self.engine.stop()
-    '''
 
 class ProcessingData(QThread):
     data_of_x_and_y = pyqtSignal(np.ndarray, np.ndarray)
@@ -273,21 +277,28 @@ class ProcessingData(QThread):
         self.traces = dict()
 
     def Update(self):
+        if stream is None:
+            #print("Nenhum stream de áudio disponível. Encerrando captura de dados.")
+            return
+
         self.x = np.arange(0, 2 * CHUNK, 2)
 
         self.activate = True
         while True:
+            try:
 
-            self.wf_data = stream.read(CHUNK)
-            self.wf_data = struct.unpack(str(2 * CHUNK) + 'B', self.wf_data)
-            self.wf_data = np.array(self.wf_data, dtype='b') [::2] + 128
-            if self.activate:
-                self.data_of_x_and_y.emit(self.x, self.wf_data)
+                self.wf_data = stream.read(CHUNK)
+                self.wf_data = struct.unpack(str(2 * CHUNK) + 'B', self.wf_data)
+                self.wf_data = np.array(self.wf_data, dtype='b') [::2] + 128
+                if self.activate:
+                    self.data_of_x_and_y.emit(self.x, self.wf_data)
+            except Exception as e:
+                print(f"Erro ao ler stream: {e}")
+                break
 
     def Stop(self):
         self.activate = False
 
-'''
 class Question_Answering(QThread):
     phrase = pyqtSignal(str)
     model_name = "gpt2"
@@ -317,5 +328,3 @@ class Question_Answering(QThread):
         self.engine.say(answer)
         self.engine.runAndWait()
         self.engine.stop()
-
-'''
