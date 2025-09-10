@@ -44,13 +44,6 @@ class Recorder(QThread):
     model = GPT2LMHeadModel.from_pretrained(model_name)
     def __init__(self, *args, **kwargs):
         super(Recorder, self).__init__()
-        '''
-        self.slyme = SlymeDriver(pfname='Default')
-        time.sleep(5)
-        self.slyme.select_latest_chat()
-        time.sleep(5)
-        '''
-        #os.environ['_BARD_API_KEY']="ZwhR1jSkN5dW2PDfqV9zY4MqwIuurobcBNkTHi8fsg6GLB1t_iiOMcLNq2jPO2q023-qoQ."
         self.engine = pyttsx3.init()
         self.args = args
         self.kwargs = kwargs
@@ -268,7 +261,7 @@ class Recorder(QThread):
         self.engine.stop()
 
 class ProcessingData(QThread):
-    data_of_x_and_y = pyqtSignal(np.ndarray, np.ndarray)
+    data_of_y = pyqtSignal(np.ndarray)
 
     def __init__(self, *args, **kwargs):
         super(ProcessingData, self).__init__()
@@ -278,7 +271,6 @@ class ProcessingData(QThread):
 
     def Update(self):
         if stream is None:
-            #print("Nenhum stream de áudio disponível. Encerrando captura de dados.")
             return
 
         self.x = np.arange(0, 2 * CHUNK, 2)
@@ -291,7 +283,7 @@ class ProcessingData(QThread):
                 self.wf_data = struct.unpack(str(2 * CHUNK) + 'B', self.wf_data)
                 self.wf_data = np.array(self.wf_data, dtype='b') [::2] + 128
                 if self.activate:
-                    self.data_of_x_and_y.emit(self.x, self.wf_data)
+                    self.data_of_y.emit(self.wf_data)
             except Exception as e:
                 print(f"Erro ao ler stream: {e}")
                 break
